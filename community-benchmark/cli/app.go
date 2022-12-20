@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"community-benchmark/cli/bench"
 	"github.com/urfave/cli"
 )
 
@@ -12,18 +13,13 @@ func CreateApp() *cli.App {
 	app.Commands = []cli.Command{
 		{
 			Name:      "bench",
-			Action:    bench,
+			Action:    bench.Bench,
 			Usage:     "Extracts community data about a list of GitHub repositories",
 			ArgsUsage: "<repository link> [<repository link> ...]",
 			Flags: []cli.Flag{
-				&cli.StringFlag{
-					Name:      "file-output",
-					TakesFile: true,
-				},
-				&cli.StringFlag{
-					Name: "output-format",
-					// Usage: "",
-					Value: "json",
+				&cli.BoolFlag{
+					Name:  "mysql-export",
+					Usage: "If the flag si provided, the collected data will be stored in a MySQL database",
 				},
 			},
 		},

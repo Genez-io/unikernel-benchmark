@@ -1,37 +1,43 @@
 package bench
 
+import "time"
+
 type RepositoryInfo struct {
-	Owner                  string                 `json:"owner"`
-	Repo                   string                 `json:"repo"`
-	CloneNumber            int                    `json:"clone_number"`
-	PullRequestsInfo       PullRequestsInfo       `json:"pull_requests_info"`
-	IssuesInfo             IssuesInfo             `json:"issues_info"`
-	CommunityDocumentation CommunityDocumentation `json:"community_documentation"`
+	Owner                  string                  `json:"owner"`
+	Repo                   string                  `json:"repo"`
+	StarNumber             int                     `json:"star_number"`
+	ForkNumber             int                     `json:"fork_number"`
+	PullRequestsInfo       *PullRequestsInfo       `json:"pull_requests_info"`
+	IssuesInfo             *IssuesInfo             `json:"issues_info"`
+	CommunityDocumentation *CommunityDocumentation `json:"community_documentation"`
+	CollectedOn            time.Time               `json:"collected_on"`
 }
 
 type PullRequestsInfo struct {
-	OpenPullRequestNumber                   int     `json:"open_pull_request_number"`
-	ClosedPullRequestNumber                 int     `json:"closed_pull_request_number"`
-	CreationFrequencyPerWeek                float64 `json:"creation_frequency_per_week"` // how often is a pull request created (per week)
-	AverageCommentsPerPullRequest           float64 `json:"average_comments_per_pull_request"`
-	AverageCommitsPerPullRequest            float64 `json:"average_commits_per_pull_request"`
-	AverageLinesOfCodeChangesPerPullRequest float64 `json:"average_lines_of_code_changes_per_pull_request"`
+	OpenPullRequestNumber         int     `json:"open_pull_request_number"`
+	ClosedPullRequestNumber       int     `json:"closed_pull_request_number"`
+	AverageCommentsPerPullRequest float64 `json:"average_comments_per_pull_request"`
+	AverageCommitsPerPullRequest  float64 `json:"average_commits_per_pull_request"`
 }
 
 type IssuesInfo struct {
-	OpenPullRequestNumber   int `json:"open_pull_request_number"`
-	ClosedPullRequestNumber int `json:"closed_pull_request_number"`
+	OpenIssuesNumber        int     `json:"open_issues_number"`
+	ClosedIssuesNumber      int     `json:"closed_issues_number"`
+	AverageCommentsPerIssue float64 `json:"average_comments_per_issue"`
 }
 
 type CollaboratorsInfo struct {
 }
 
 type CommunityDocumentation struct {
-	HealthPercentage       int  `json:"health_percentage"`
-	HasCodeOfConduct       bool `json:"has_code_of_conduct"`
-	HasContributing        bool `json:"has_contributing"`
-	HasIssueTemplate       bool `json:"has_issue_template"`
-	HasPullRequestTemplate bool `json:"has_pull_request_template"`
-	HasLicence             bool `json:"has_licence"`
-	HasReadme              bool `json:"has_readme"`
+	HealthPercentage         int  `json:"health_percentage"`
+	HasCodeOfConduct         bool `json:"has_code_of_conduct"`
+	HasContributing          bool `json:"has_contributing"`
+	HasIssueTemplate         bool `json:"has_issue_template"`
+	HasPullRequestTemplate   bool `json:"has_pull_request_template"`
+	HasLicense               bool `json:"has_license"`
+	HasReadme                bool `json:"has_readme"`
+	HasContentReportsEnabled bool `json:"has_content_reports_enabled"`
+	HasWiki                  bool `json:"has_wiki"`
+	// HasDiscussions           bool `json:"has_discussions"`
 }
