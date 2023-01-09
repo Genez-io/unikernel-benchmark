@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/google/go-github/v48/github"
+	"github.com/shurcooL/githubv4"
 	"github.com/urfave/cli"
 	"golang.org/x/oauth2"
 	"log"
@@ -12,7 +12,6 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -44,126 +43,122 @@ func collectRepositoryInfo(owner, repo string) (*RepositoryInfo, error) {
 		))
 	}
 
-	client := github.NewClient(oAuthClient)
+	client := githubv4.NewClient(oAuthClient)
 
-	repoInfo, _, err := client.Repositories.Get(context.Background(), owner, repo)
+	repoInfo := RepositoryInfoQuery{}
+	err := client.Query(context.Background(), &repoInfo, map[string]interface{}{
+		"owner": githubv4.String(owner),
+		"name":  githubv4.String(repo),
+	})
 	if err != nil {
-		return nil, fmt.Errorf("could not get repository info for %s/%s: %s", owner, repo, err)
+		return nil, err
 	}
 
-	pullInfo, issuesInfo, err := collectPRandIssuesInfo(owner, repo, client)
+	issuesInfo, err := collectIssuesInfo(owner, repo, repoInfo.Repository.Issues.TotalCount, client)
 	if err != nil {
 		return nil, err
 	}
 
-	metrics, err := collectCommunityHealthMetrics(owner, repo, client)
+	pullRequestsInfo, err := collectPullRequestsInfo(owner, repo, repoInfo.Repository.PullRequests.TotalCount, client)
 	if err != nil {
 		return nil, err
 	}
+
+	//metrics, err := collectCommunityHealthMetrics(owner, repo, client)
+	//if err != nil {
+	//	return nil, err
+	//}
 
 	return &RepositoryInfo{
-		Owner:                  owner,
-		Repo:                   repo,
-		StarNumber:             repoInfo.GetStargazersCount(),
-		ForkNumber:             repoInfo.GetForksCount(),
-		PullRequestsInfo:       pullInfo,
-		IssuesInfo:             issuesInfo,
-		CommunityDocumentation: metrics,
-		CollectedOn:            time.Now(),
+		Owner:            owner,
+		Repo:             repo,
+		StarNumber:       repoInfo.Repository.StargazerCount,
+		ForkNumber:       repoInfo.Repository.ForkCount,
+		PullRequestsInfo: pullRequestsInfo,
+		IssuesInfo:       issuesInfo,
+		//CommunityDocumentation: metrics,
+		CollectedOn: time.Now(),
 	}, nil
 }
 
-func collectPRandIssuesInfo(owner, repo string, client *github.Client) (*PullRequestsInfo, *IssuesInfo, error) {
-	var issues []*github.Issue
+func collectIssuesInfo(owner, repo string, issueCount int, client *githubv4.Client) (*IssuesInfo, error) {
+	var issues []IssueNode
 
-	pg := 1
-	for ; ; pg++ {
-		list, _, err := client.Issues.ListByRepo(context.Background(), owner, repo, &github.IssueListByRepoOptions{State: "all", ListOptions: github.ListOptions{PerPage: 100, Page: pg}})
+	endCursor := (*githubv4.String)(nil)
+	for index := 0; index < issueCount; index += 100 {
+		issuesInfo := IssuesInfoQuery{}
+		err := client.Query(context.Background(), &issuesInfo, map[string]interface{}{
+			"owner":     githubv4.String(owner),
+			"name":      githubv4.String(repo),
+			"endCursor": endCursor,
+		})
 		if err != nil {
-			return nil, nil, fmt.Errorf("could not get repository issues for %s/%s: %s", owner, repo, err)
+			return nil, err
 		}
 
-		issues = append(issues, list...)
+		endCursor = githubv4.NewString(githubv4.String(issuesInfo.Repository.Issues.PageInfo.EndCursor))
 
-		if len(list) < 100 {
-			break
+		issues = append(issues, issuesInfo.Repository.Issues.Nodes...)
+	}
+
+	openIssues := 0
+	closedIssues := 0
+	totalComments := 0
+	for _, issue := range issues {
+		if issue.Closed {
+			closedIssues++
+		} else {
+			openIssues++
 		}
+		totalComments += issue.Comments.TotalCount
+	}
+
+	return &IssuesInfo{
+		OpenIssuesNumber:        openIssues,
+		ClosedIssuesNumber:      closedIssues,
+		AverageCommentsPerIssue: float64(totalComments) / float64(issueCount),
+	}, nil
+}
+
+func collectPullRequestsInfo(owner, repo string, pullRequestCount int, client *githubv4.Client) (*PullRequestsInfo, error) {
+	var pullRequests []PullRequestNode
+
+	endCursor := (*githubv4.String)(nil)
+	for index := 0; index < pullRequestCount; index += 100 {
+		pullRequestInfo := PullRequestsInfoQuery{}
+		err := client.Query(context.Background(), &pullRequestInfo, map[string]interface{}{
+			"owner":     githubv4.String(owner),
+			"name":      githubv4.String(repo),
+			"endCursor": endCursor,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		endCursor = githubv4.NewString(githubv4.String(pullRequestInfo.Repository.PullRequests.PageInfo.EndCursor))
+
+		pullRequests = append(pullRequests, pullRequestInfo.Repository.PullRequests.Nodes...)
 	}
 
 	openPullRequests := 0
 	closedPullRequests := 0
-	totalPRComments := 0
-	totalPRCommits := 0
-
-	openIssues := 0
-	closedIssues := 0
-	totalIssueComments := 0
-	var wg sync.WaitGroup
-	for _, issue := range issues {
-		issue := issue
-		wg.Add(1)
-		go func() {
-			if issue.IsPullRequest() {
-				if issue.GetState() == "open" {
-					openPullRequests++
-				}
-				if issue.GetState() == "closed" {
-					closedPullRequests++
-				}
-				commits, _, _ := client.PullRequests.ListCommits(context.Background(), owner, repo, issue.GetNumber(), &github.ListOptions{PerPage: 100})
-				totalPRCommits += len(commits)
-
-				comments, _, _ := client.PullRequests.ListComments(context.Background(), owner, repo, issue.GetNumber(), &github.PullRequestListCommentsOptions{ListOptions: github.ListOptions{PerPage: 100}})
-				totalPRComments += len(comments)
-			} else {
-				if issue.GetState() == "open" {
-					openIssues++
-				}
-				if issue.GetState() == "closed" {
-					closedIssues++
-				}
-				comments, _, _ := client.Issues.ListComments(context.Background(), owner, repo, issue.GetNumber(), &github.IssueListCommentsOptions{ListOptions: github.ListOptions{PerPage: 100}})
-				totalIssueComments += len(comments)
-			}
-
-			wg.Done()
-		}()
+	totalComments := 0
+	totalCommits := 0
+	for _, pullRequest := range pullRequests {
+		if pullRequest.Closed {
+			closedPullRequests++
+		} else {
+			openPullRequests++
+		}
+		totalComments += pullRequest.Comments.TotalCount
+		totalCommits += pullRequest.Commits.TotalCount
 	}
-	wg.Wait()
 
 	return &PullRequestsInfo{
-			OpenPullRequestNumber:         openPullRequests,
-			ClosedPullRequestNumber:       closedPullRequests,
-			AverageCommentsPerPullRequest: float64(totalPRComments) / float64(openPullRequests+closedPullRequests),
-			AverageCommitsPerPullRequest:  float64(totalPRCommits) / float64(openPullRequests+closedPullRequests),
-		}, &IssuesInfo{
-			OpenIssuesNumber:        openIssues,
-			ClosedIssuesNumber:      closedIssues,
-			AverageCommentsPerIssue: float64(totalIssueComments) / float64(openIssues+closedIssues),
-		}, nil
-}
-
-func collectCommunityHealthMetrics(owner, repo string, client *github.Client) (*CommunityDocumentation, error) {
-	metrics, _, err := client.Repositories.GetCommunityHealthMetrics(context.Background(), owner, repo)
-	if err != nil {
-		return nil, fmt.Errorf("could not get community health metrics for %s/%s: %s", owner, repo, err)
-	}
-
-	repoInfo, _, err := client.Repositories.Get(context.Background(), owner, repo)
-	if err != nil {
-		return nil, fmt.Errorf("could not get repository info for %s/%s: %s", owner, repo, err)
-	}
-
-	return &CommunityDocumentation{
-		HealthPercentage:         metrics.GetHealthPercentage(),
-		HasCodeOfConduct:         metrics.Files.GetCodeOfConduct() != nil,
-		HasContributing:          metrics.Files.GetContributing() != nil,
-		HasIssueTemplate:         metrics.Files.GetIssueTemplate() != nil,
-		HasPullRequestTemplate:   metrics.Files.GetPullRequestTemplate() != nil,
-		HasLicense:               metrics.Files.GetLicense() != nil,
-		HasReadme:                metrics.Files.GetReadme() != nil,
-		HasContentReportsEnabled: metrics.GetContentReportsEnabled(),
-		HasWiki:                  repoInfo.GetHasWiki(),
+		OpenPullRequestsNumber:        openPullRequests,
+		ClosedPullRequestsNumber:      closedPullRequests,
+		AverageCommentsPerPullRequest: float64(totalComments) / float64(pullRequestCount),
+		AverageCommitsPerPullRequest:  float64(totalCommits) / float64(pullRequestCount),
 	}, nil
 }
 

@@ -14,8 +14,8 @@ type RepositoryInfo struct {
 }
 
 type PullRequestsInfo struct {
-	OpenPullRequestNumber         int     `json:"open_pull_request_number"`
-	ClosedPullRequestNumber       int     `json:"closed_pull_request_number"`
+	OpenPullRequestsNumber        int     `json:"open_pull_request_number"`
+	ClosedPullRequestsNumber      int     `json:"closed_pull_request_number"`
 	AverageCommentsPerPullRequest float64 `json:"average_comments_per_pull_request"`
 	AverageCommitsPerPullRequest  float64 `json:"average_commits_per_pull_request"`
 }

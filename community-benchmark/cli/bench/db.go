@@ -91,8 +91,8 @@ func saveToDb(connection *sql.DB, info *RepositoryInfo) error {
 		`INSERT INTO pull_requests (repository_id, open_pull_requests_number, closed_pull_requests_number, 
 			average_comments_per_pull_request, average_commits_per_pull_request) VALUES (?, ?, ?, ?, ?)`,
 		repositoryId,
-		info.PullRequestsInfo.OpenPullRequestNumber,
-		info.PullRequestsInfo.ClosedPullRequestNumber,
+		info.PullRequestsInfo.OpenPullRequestsNumber,
+		info.PullRequestsInfo.ClosedPullRequestsNumber,
 		info.PullRequestsInfo.AverageCommentsPerPullRequest,
 		info.PullRequestsInfo.AverageCommitsPerPullRequest)
 	if err != nil {
