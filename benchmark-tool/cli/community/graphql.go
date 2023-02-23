@@ -1,4 +1,4 @@
-package bench
+package community
 
 type RepositoryInfoQuery struct {
 	Repository struct {

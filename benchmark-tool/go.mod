@@ -1,4 +1,4 @@
-module community-benchmark
+module benchmark-tool
 
 go 1.19
 
