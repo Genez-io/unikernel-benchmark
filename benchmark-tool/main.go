@@ -1,7 +1,7 @@
 package main
 
 import (
-	"community-benchmark/cli"
+	"benchmark-tool/cli"
 	"log"
 	"os"
 )

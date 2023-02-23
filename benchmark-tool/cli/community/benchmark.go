@@ -1,4 +1,4 @@
-package bench
+package community
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"log"
 )
 
-func Bench(c *cli.Context) error {
+func Benchmark(c *cli.Context) error {
 	if c.NArg() == 0 {
 		return fmt.Errorf("no GitHub repositories provided")
 	}
