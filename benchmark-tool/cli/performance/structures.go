@@ -1,9 +1,7 @@
 package performance
 
-import "time"
-
 type PerformanceBenchmark struct {
-	TimeToBoot     time.Duration
-	TimeToRun      time.Duration
+	TimeToBootMs   int64
+	TimeToRunMs    int64
 	MemoryUsageMiB int
 }

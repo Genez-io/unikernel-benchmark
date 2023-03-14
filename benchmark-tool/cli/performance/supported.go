@@ -1,10 +1,6 @@
 package performance
 
-import (
-	"benchmark-tool/cli/performance/drivers"
-)
-
-var supportedUnikernels = map[string]interface{}{
-	"cloudius-systems/osv": drivers.OSvDriver,
-	"unikraft/unikraft":    drivers.UnikraftDriver,
+var SupportedUnikernels = map[string]interface{}{
+	"cloudius-systems/osv": OSvDriver,
+	"unikraft/unikraft":    UnikraftDriver,
 }

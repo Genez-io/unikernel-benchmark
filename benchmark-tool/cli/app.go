@@ -31,8 +31,12 @@ func CreateApp() *cli.App {
 			ArgsUsage: "<repository link> [<repository link> ...]",
 			Flags: []cli.Flag{
 				&cli.BoolFlag{
+					Name:  "clear-cache",
+					Usage: "Clear the docker build image cache before building the unikernels",
+				},
+				&cli.BoolFlag{
 					Name:  "mysql-export",
-					Usage: "If the flag is provided, the collected data will be stored in a MySQL database",
+					Usage: "Export the collected data will be stored in a MySQL database",
 				},
 			},
 		},
