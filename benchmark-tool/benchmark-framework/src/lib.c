@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 
 static long get_memory_usage() {
     FILE *f = fopen("/proc/self/status", "r");
@@ -16,7 +18,39 @@ static long get_memory_usage() {
     return -1;
 }
 
+static void open_server(benchmark_data *data) {
+    int sock, len;
+    struct sockaddr_in saddr, cli;
+    
+    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        benchmark_error("Socket creation failed!", data);
+    }
+
+    saddr.sin_family = AF_INET;
+    saddr.sin_port = htons(25565);
+    saddr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+    if (bind(sock, (struct sockaddr *) &saddr, sizeof(saddr))) {
+        benchmark_error("Socket bind failed!", data);
+    }
+
+    if (listen(sock, 1)) {
+        benchmark_error("Socket listen failed!", data);
+    }
+
+    len = sizeof(cli);
+
+    printf("Waiting for client to connect...\n");
+    if((data->comm_socket = accept(sock, (struct sockaddr *) &cli, &len)) < 0) {
+        benchmark_error("Socket accept failed!", data);
+    }
+    send(data->comm_socket, "booted!", 7, 0);
+    printf("Client connected!\n");
+}
+
 void benchmark_init(benchmark_data *data) {
+    open_server(data);
+
     container_init(&data->memory_datapoints);
     data->display_errors = 1;
 }
@@ -49,5 +83,5 @@ void benchmark_error(char *msg, benchmark_data *data) {
     if (!data->display_errors)
         return;
 
-    fprintf(stderr, "[benchmark-framework] %s", msg);
+    fprintf(stderr, "[benchmark-framework] %s\n", msg);
 }

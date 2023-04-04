@@ -4,35 +4,21 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/archive"
-	"github.com/urfave/cli"
+	"io"
+	"net"
 	"time"
+
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/client"
+	"github.com/docker/go-connections/nat"
 )
 
-func OSvDriver(c *cli.Context) (*PerformanceBenchmark, error) {
-	dockerClient, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation())
-	if err != nil {
-		return nil, err
-	}
+func OSvDriver(dockerClient *client.Client, buildContext io.ReadCloser, buildOptions types.ImageBuildOptions) (*PerformanceBenchmark, error) {
+	buildOptions.Tags = []string{"osv"}
+	buildOptions.Dockerfile = "unikernels/osv.Dockerfile"
 
-	buildOptions := types.ImageBuildOptions{
-		Tags:       []string{"osv23"},
-		Dockerfile: "osv.Dockerfile",
-	}
-
-	if c.Bool("clear-cache") {
-		buildOptions.ForceRemove = true
-		buildOptions.NoCache = true
-	}
-
-	tar, err := archive.TarWithOptions("unikernels/", &archive.TarOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	builtImage, err := dockerClient.ImageBuild(context.Background(), tar, buildOptions)
+	builtImage, err := dockerClient.ImageBuild(context.Background(), buildContext, buildOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -42,17 +28,92 @@ func OSvDriver(c *cli.Context) (*PerformanceBenchmark, error) {
 		fmt.Println(scanner.Text())
 	}
 
-	start := time.Now()
+	resp, err := dockerClient.ContainerCreate(context.Background(),
+		&container.Config{
+			Image: "osv",
+			ExposedPorts: nat.PortSet{
+				"25565/tcp": struct{}{},
+			},
+			// AttachStdout: true,
+			// AttachStderr: true,
+			// Tty:          true,
+		},
+		&container.HostConfig{
+			// Resources: container.Resources{
+			// 	Devices: []container.DeviceMapping{
+			// 		{PathOnHost: "/dev/kvm", PathInContainer: "/dev/kvm", CgroupPermissions: "rwm"},
+			// 	},
+			// },
+			PortBindings: map[nat.Port][]nat.PortBinding{
+				"25565/tcp": {
+					{
+						HostIP:   "0.0.0.0",
+						HostPort: "25565",
+					},
+				},
+			},
+			Privileged: true,
+		},
+		nil, nil, "")
+	if err != nil {
+		return nil, err
+	}
+
+	if err := dockerClient.ContainerStart(context.Background(), resp.ID, types.ContainerStartOptions{}); err != nil {
+		return nil, err
+	}
+
+	// waiter, _ := dockerClient.ContainerAttach(context.Background(), resp.ID, types.ContainerAttachOptions{
+	// 	Stderr: true,
+	// 	Stdout: true,
+	// 	Stdin:  true,
+	// 	Stream: true,
+	// })
+	// go io.Copy(os.Stdout, waiter.Reader)
+
+	conn, err := net.DialTimeout("tcp", "localhost:25565", 10*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	conn.Close()
+	boot_start := time.Now()
+	println("booting...")
+
+	buf := make([]byte, 1024)
+	for string(buf)[0:6] != "booted" {
+		time.Sleep(1 * time.Millisecond)
+		conn, err = net.DialTimeout("tcp", "localhost:25565", 10*time.Second)
+		if err != nil {
+			return nil, err
+		}
+		conn.Read(buf)
+	}
+	boot_end := time.Now()
+	conn.Close()
+	println(string(buf))
+
+	statusCh, errCh := dockerClient.ContainerWait(context.Background(), resp.ID, container.WaitConditionNotRunning)
+	select {
+	case err := <-errCh:
+		if err != nil {
+			panic(err)
+		}
+	case <-statusCh:
+	}
 
 	end := time.Now()
 
+	dockerClient.ContainerRemove(context.Background(), resp.ID, types.ContainerRemoveOptions{
+		Force: true,
+	})
+
 	return &PerformanceBenchmark{
-		TimeToBootMs:   0,
-		TimeToRunMs:    end.Sub(start).Milliseconds(),
+		TimeToBootMs:   boot_end.Sub(boot_start).Milliseconds(),
+		TimeToRunMs:    end.Sub(boot_start).Milliseconds(),
 		MemoryUsageMiB: 0,
 	}, nil
 }
 
-func UnikraftDriver(c *cli.Context) (*PerformanceBenchmark, error) {
+func UnikraftDriver(dockerClient *client.Client, buildContext io.ReadCloser, buildOptions types.ImageBuildOptions) (*PerformanceBenchmark, error) {
 	return nil, nil
 }

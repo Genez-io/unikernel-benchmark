@@ -3,6 +3,7 @@
 typedef struct {
     container memory_datapoints;
     int display_errors;
+    int comm_socket;
 } benchmark_data;
 
 typedef struct {
