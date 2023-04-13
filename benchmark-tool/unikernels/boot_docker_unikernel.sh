@@ -16,6 +16,8 @@ iptables -t nat -F && \
 iptables -X && \
 iptables -t nat -A PREROUTING -p tcp --dport $3 -j DNAT --to-destination $2:$3 && \
 iptables -t nat -A POSTROUTING -p tcp -d $2 --dport $3 -j SNAT --to-source $1 && \
+iptables -t nat -A PREROUTING -p udp --dport $3 -j DNAT --to-destination $2:$3 && \
+iptables -t nat -A POSTROUTING -p udp -d $2 --dport $3 -j SNAT --to-source $1
 
 # # Run command passed as argument
 /bin/bash -c "$4"

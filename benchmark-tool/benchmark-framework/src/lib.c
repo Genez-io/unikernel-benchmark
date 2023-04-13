@@ -1,9 +1,12 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include "../include/lib.h"
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <math.h>
 
 static long get_memory_usage() {
     FILE *f = fopen("/proc/self/status", "r");
@@ -18,34 +21,51 @@ static long get_memory_usage() {
     return -1;
 }
 
+static char *timestamp(){
+    long            ms; // Milliseconds
+    time_t          s;  // Seconds
+    struct timespec spec; 
+    clock_gettime(CLOCK_REALTIME, &spec);
+
+    s  = spec.tv_sec;
+    ms = round(spec.tv_nsec / 1.0e6); // Convert nanoseconds to milliseconds
+    if (ms > 999) {
+        s++;
+        ms = 0;
+    }
+
+    char *res = malloc(100);
+    sprintf(res, "%ld.%03ld\n", s, ms);
+
+    return res;
+}
+
 static void open_server(benchmark_data *data) {
-    int sock, len;
+    int sock, len, received;
     struct sockaddr_in saddr, cli;
+    char buffer[1024];
+
     
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         benchmark_error("Socket creation failed!", data);
     }
 
     saddr.sin_family = AF_INET;
     saddr.sin_port = htons(25565);
-    saddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    saddr.sin_addr.s_addr = INADDR_ANY;
 
     if (bind(sock, (struct sockaddr *) &saddr, sizeof(saddr))) {
         benchmark_error("Socket bind failed!", data);
     }
 
-    if (listen(sock, 1)) {
-        benchmark_error("Socket listen failed!", data);
-    }
-
     len = sizeof(cli);
 
-    printf("Waiting for client to connect...\n");
-    if((data->comm_socket = accept(sock, (struct sockaddr *) &cli, &len)) < 0) {
-        benchmark_error("Socket accept failed!", data);
-    }
-    send(data->comm_socket, "booted!", 7, 0);
-    printf("Client connected!\n");
+    received = recvfrom(sock, (char *) buffer, 1024, MSG_WAITALL,
+        (struct sockaddr *) &cli, &len);
+    sendto(sock, "booted!", strlen("booted!"), MSG_CONFIRM,
+        (struct sockaddr *) &cli, len);
+
+    data->comm_socket = sock;
 }
 
 void benchmark_init(benchmark_data *data) {
