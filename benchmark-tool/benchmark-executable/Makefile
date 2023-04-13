@@ -1,5 +1,5 @@
 build: main.o benchmark_lib
-	gcc -o benchmark_executable main.o ../benchmark-framework/src/lib.o ../benchmark-framework/src/container.o
+	gcc -o benchmark_executable main.o ../benchmark-framework/src/lib.o ../benchmark-framework/src/container.o -lm
 
 main.o: main.c
 
