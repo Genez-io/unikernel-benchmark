@@ -44,7 +44,6 @@ static void open_server(benchmark_data *data) {
     int sock, len, received;
     struct sockaddr_in saddr, cli;
     char buffer[1024];
-
     
     if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         benchmark_error("Socket creation failed!", data);

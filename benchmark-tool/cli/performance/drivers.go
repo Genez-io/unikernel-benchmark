@@ -3,6 +3,7 @@ package performance
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -14,6 +15,74 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 )
+
+func getStaticMetricsAndBoot() (*StaticMetrics, error) {
+	var conn net.Conn
+	var err error
+	var staticMetrics StaticMetrics
+
+	for i := 0; ; i++ {
+		conn, err = net.DialTimeout("tcp", "localhost"+DOCKER_PORT, 10*time.Second)
+		if err != nil {
+			if i >= MAX_RETRIES {
+				return nil, err
+			}
+
+			time.Sleep(5 * time.Millisecond)
+			continue
+		}
+
+		break
+	}
+
+	buffer := make([]byte, 1024)
+	bytes_read, _ := conn.Read(buffer)
+
+	conn.Close()
+
+	json.Unmarshal(buffer[:bytes_read], &staticMetrics)
+
+	return &staticMetrics, nil
+}
+
+func waitUnikernetToBoot() error {
+	var conn net.Conn
+	var err error
+
+	udpServer, err := net.ResolveUDPAddr("udp", DOCKER_PORT)
+	if err != nil {
+		return err
+	}
+
+	for i := 0; ; i++ {
+		conn, err = net.DialUDP("udp", nil, udpServer)
+		if err != nil {
+			if i >= MAX_RETRIES {
+				return err
+			}
+
+			time.Sleep(5 * time.Millisecond)
+			continue
+		}
+
+		break
+	}
+
+	buf := make([]byte, 1024)
+	for string(buf)[0:6] != "booted" {
+		_, err = conn.Write([]byte("booting..."))
+		if err != nil {
+			time.Sleep(time.Millisecond)
+			continue
+		}
+
+		conn.SetReadDeadline(time.Now().Add(1 * time.Millisecond))
+		conn.Read(buf)
+	}
+	conn.Close()
+
+	return nil
+}
 
 func OSvDriver(dockerClient *client.Client, buildContext io.ReadCloser, buildOptions types.ImageBuildOptions) (*PerformanceBenchmark, error) {
 	buildOptions.Tags = []string{"osv"}
@@ -74,38 +143,24 @@ func OSvDriver(dockerClient *client.Client, buildContext io.ReadCloser, buildOpt
 	})
 	go io.Copy(os.Stdout, waiter.Reader)
 
-	conn, err := net.DialTimeout("tcp", "localhost:25565", 10*time.Second)
-	if err != nil {
-		return nil, err
-	}
-	conn.Close()
-	boot_start := time.Now()
-	println("booting...")
-
-	udpServer, err := net.ResolveUDPAddr("udp", ":25565")
-	if err != nil {
-		return nil, err
-	}
-	conn, err = net.DialUDP("udp", nil, udpServer)
+	time.Sleep(1 * time.Second)
+	staticMetrics, err := getStaticMetricsAndBoot()
 	if err != nil {
 		return nil, err
 	}
 
-	buf := make([]byte, 1024)
-	for string(buf)[0:6] != "booted" {
-		_, err = conn.Write([]byte("booting..."))
-		if err != nil {
-			time.Sleep(1 * time.Millisecond)
-			continue
+	go func() {
+		i := 0
+		for {
+			println(fmt.Sprint(i) + "ms")
+			time.Sleep(10 * time.Millisecond)
+			i += 10
 		}
+	}()
 
-		conn.SetReadDeadline(time.Now().Add(1 * time.Millisecond))
-		conn.Read(buf)
-		time.Sleep(1 * time.Millisecond)
-	}
+	boot_start := time.Now()
+	waitUnikernetToBoot()
 	boot_end := time.Now()
-	conn.Close()
-	// println(string(buf))
 
 	statusCh, errCh := dockerClient.ContainerWait(context.Background(), resp.ID, container.WaitConditionNotRunning)
 	select {
@@ -126,6 +181,7 @@ func OSvDriver(dockerClient *client.Client, buildContext io.ReadCloser, buildOpt
 		TimeToBootMs:   boot_end.Sub(boot_start).Milliseconds(),
 		TimeToRunMs:    end.Sub(boot_start).Milliseconds(),
 		MemoryUsageMiB: 0,
+		StaticMetrics:  *staticMetrics,
 	}, nil
 }
 
