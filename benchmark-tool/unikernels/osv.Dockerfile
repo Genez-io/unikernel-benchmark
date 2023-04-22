@@ -21,6 +21,15 @@ RUN mkdir /osv/.firecracker/ && \
     wget https://github.com/firecracker-microvm/firecracker/releases/download/v0.23.0/firecracker-v0.23.0-x86_64 -O /osv/.firecracker/firecracker-x86_64 && \
     chmod a+x /osv/.firecracker/firecracker-x86_64
 
+RUN echo "imageSize=$(wc -c ./build/release/usr.img | cut -d" " -f1)" >> ./static_metrics
+
+COPY /unikernels/send_static_metrics.py ./send_static_metrics.py
 COPY /unikernels/boot_docker_unikernel.sh ./boot_docker_unikernel.sh
 
-CMD ["/bin/bash", "-c", "./boot_docker_unikernel.sh 172.17.0.2 172.16.0.2 25565 \"/osv/scripts/firecracker.py -n -e '/benchmark_executable'\""]
+CMD ["/bin/bash", "-c", "./boot_docker_unikernel.sh \
+    172.17.0.2 \
+    172.16.0.2 \
+    25565 \
+    \"/osv/scripts/firecracker.py -n -e '/benchmark_executable'\" \
+    \"/osv/scripts/setup_fc_networking.sh natted fc_tap0 172.16.0.1\" \
+    "]

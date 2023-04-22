@@ -11,7 +11,9 @@ import (
 )
 
 func Benchmark(c *cli.Context) error {
-	buildOptions := types.ImageBuildOptions{}
+	buildOptions := types.ImageBuildOptions{
+		Remove: true,
+	}
 	if c.Bool("clear-cache") {
 		buildOptions.ForceRemove = true
 		buildOptions.NoCache = true
