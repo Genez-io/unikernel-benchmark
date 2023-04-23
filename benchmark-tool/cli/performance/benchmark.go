@@ -39,6 +39,7 @@ func Benchmark(c *cli.Context) error {
 			log.Printf("Memory used: %dMiB", benchmark.MemoryUsageMiB)
 			log.Printf("Time to run: %dms", benchmark.TimeToRunMs)
 			log.Printf("Time to boot: %dms", benchmark.TimeToBootMs)
+			log.Printf("Image size: %.2fMiB", float64(benchmark.StaticMetrics.ImageSize)/(1024*1024))
 		}
 	}
 

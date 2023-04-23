@@ -38,9 +38,14 @@ func getStaticMetricsAndBoot() (*StaticMetrics, error) {
 	buffer := make([]byte, 1024)
 	bytes_read, _ := conn.Read(buffer)
 
-	conn.Close()
+	err = json.Unmarshal(buffer[:bytes_read], &staticMetrics)
+	if err != nil {
+		return nil, err
+	}
 
-	json.Unmarshal(buffer[:bytes_read], &staticMetrics)
+	for bytes_read, _ := conn.Read(buffer); bytes_read != 0; {
+		time.Sleep(time.Millisecond)
+	}
 
 	return &staticMetrics, nil
 }
@@ -143,20 +148,20 @@ func OSvDriver(dockerClient *client.Client, buildContext io.ReadCloser, buildOpt
 	})
 	go io.Copy(os.Stdout, waiter.Reader)
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(time.Second)
 	staticMetrics, err := getStaticMetricsAndBoot()
 	if err != nil {
 		return nil, err
 	}
 
-	go func() {
-		i := 0
-		for {
-			println(fmt.Sprint(i) + "ms")
-			time.Sleep(10 * time.Millisecond)
-			i += 10
-		}
-	}()
+	// go func() {
+	// 	i := 0
+	// 	for {
+	// 		println(fmt.Sprint(i) + "ms")
+	// 		time.Sleep(10 * time.Millisecond)
+	// 		i += 10
+	// 	}
+	// }()
 
 	boot_start := time.Now()
 	waitUnikernetToBoot()
