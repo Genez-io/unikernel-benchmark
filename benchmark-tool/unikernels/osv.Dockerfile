@@ -17,18 +17,17 @@ RUN make -C /benchmark-executable
 
 RUN ./scripts/manifest_from_host.sh -w ../benchmark-executable/benchmark_executable && ./scripts/build --append-manifest
 
-# RUN qemu-img convert -O raw /osv/build/last/usr.img /osv/build/last/usr.raw
-
 RUN mkdir /osv/.firecracker/ && \
     wget https://github.com/firecracker-microvm/firecracker/releases/download/v0.23.0/firecracker-v0.23.0-x86_64 -O /osv/.firecracker/firecracker-x86_64 && \
     chmod a+x /osv/.firecracker/firecracker-x86_64
 
-RUN echo "imageSize=$(wc -c ./build/release/usr.img | cut -d" " -f1)" >> /static_metrics
+RUN echo "imageSizeBytes=$(wc -c ./build/release/usr.img | cut -d" " -f1)" >> /static_metrics
 
 RUN pip install requests-unixsocket
 
 COPY /unikernels/boot_docker_unikernel.sh /scripts/boot_docker_unikernel.sh
 COPY /unikernels/osv.py /scripts/osv.py
+COPY /unikernels/utils /scripts/utils
 
 CMD ["/bin/bash", "-c", "/scripts/boot_docker_unikernel.sh \
     172.17.0.2 \
@@ -36,13 +35,3 @@ CMD ["/bin/bash", "-c", "/scripts/boot_docker_unikernel.sh \
     25565 \
     \"python3 /scripts/osv.py\" \
     "]
-
-
-    # \"curl -X PUT --unixsocket /osv/.firecracker/socket http://localhost/actions -H 'Content-Type: application/json' -d \"{'action_type': 'InstanceStart'}\"\" \
-    # \"/osv/scripts/setup_fc_networking.sh natted fc_tap0 172.16.0.1 && \
-    #   qemu-img convert -O raw /osv/build/last/usr.img /osv/build/last/usr.raw\ && \
-    #   /osv/.firecracker/firecracker-x86_64 --api-sock /osv/.firecracker/socket" \
-    # "]
-
-    # \"/osv/scripts/firecracker.py -n -V  -e '/benchmark_executable'\" \
-    # \"/osv/.firecracker/firecracker-x86_64 --no-api --config-file /osv/.firecracker/config.json\" \
