@@ -3,6 +3,7 @@ package cli
 import (
 	"benchmark-tool/cli/community"
 	"benchmark-tool/cli/performance"
+
 	"github.com/urfave/cli"
 )
 
@@ -22,6 +23,10 @@ func CreateApp() *cli.App {
 					Name:  "mysql-export",
 					Usage: "If the flag is provided, the collected data will be stored in a MySQL database",
 				},
+				&cli.BoolFlag{
+					Name:  "debug",
+					Usage: "Show debug information",
+				},
 			},
 		},
 		{
@@ -37,6 +42,10 @@ func CreateApp() *cli.App {
 				&cli.BoolFlag{
 					Name:  "mysql-export",
 					Usage: "Export the collected data will be stored in a MySQL database",
+				},
+				&cli.BoolFlag{
+					Name:  "debug",
+					Usage: "Show debug information",
 				},
 			},
 		},

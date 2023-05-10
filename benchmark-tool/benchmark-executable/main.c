@@ -6,12 +6,19 @@ int main(void) {
     benchmark_data data;
     benchmark_init(&data);
 
-    for (int i = 0; i <= 10; i++) {
-        benchmark_capture_memory_datapoint(&data);
-        char *a = malloc(4096 * 400);
-        for (int j = 0; j < 4096 * 400; j++)
-            a[j] = 'a';
+    char *a[4];
 
+    for (int i = 0; i < 4; i++) {
+        benchmark_capture_memory_datapoint(&data);
+        a[i] = malloc(1024 * 1024 * 10);
+        for (int j = 0; j < 1024 * 1024 * 10; j += 1)
+            a[i][j] = 'a';
+        sleep(1);
+    }
+
+    for (int i = 0; i < 4; i++) {
+        free(a[i]);
+        benchmark_capture_memory_datapoint(&data);
         sleep(1);
     }
 

@@ -2,15 +2,19 @@ package performance
 
 import (
 	"io"
-	"log"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/archive"
+	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
 
 func Benchmark(c *cli.Context) error {
+	if c.Bool("debug") {
+		logrus.SetLevel(logrus.DebugLevel)
+	}
+
 	buildOptions := types.ImageBuildOptions{
 		Remove: true,
 	}
@@ -36,10 +40,10 @@ func Benchmark(c *cli.Context) error {
 		}
 
 		if benchmark != nil {
-			log.Printf("Memory used: %dMiB", benchmark.MemoryUsageMiB)
-			log.Printf("Time to run: %dms", benchmark.TimeToRunMs)
-			log.Printf("Time to boot: %dms", benchmark.TimeToBootMs)
-			log.Printf("Image size: %.2fMiB", float64(benchmark.StaticMetrics.ImageSize)/(1024*1024))
+			logrus.Infof("Time to run: %dms", benchmark.TimeToRunMs)
+			logrus.Infof("Time to boot: %dms", benchmark.TimeToBootMs)
+			logrus.Infof("Image size: %.2fMiB", float64(benchmark.StaticMetrics.ImageSizeBytes)/(1024*1024))
+			logrus.Infof("Total memory usage: %.2fMiB", benchmark.RuntimeMetrics.TotalMemoryUsageMiB)
 		}
 	}
 

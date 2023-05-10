@@ -1,45 +1,7 @@
-import requests_unixsocket as req
-import json, subprocess, sys, os, signal, time, socket
+import subprocess, sys, os, time
 
-class FirecrackerApiClient(object):
-    def __init__(self, socket_path: str):
-        self.session = req.Session()
-        self.socket_path = f'http+unix://{socket_path.replace("/", "%2F")}'
-
-    def make_put_call(self, endpoint: str, request_body: dict):
-        res = self.session.put(self.socket_path + endpoint, data=json.dumps(request_body))
-        if res.status_code != 204:
-            print(f'Error: {res.text}')
-        return res.status_code
-    
-class BenchmarkChannel(object):
-    def __init__(self, port: int):
-        self.conn = None
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(("", port))
-            s.listen()
-            conn, addr = s.accept()
-            self.conn = conn
-
-    def send_static_metrics(self, metrics_file: str):
-        metrics = {}
-        # Read contents from metrics file and send it to the client
-        with open(metrics_file, "r") as f:
-            for line in f:
-                key, value = line.strip().split("=")
-                try:
-                    value = int(value)
-                except ValueError:
-                    pass
-
-                metrics[key] = value
-
-        self.conn.sendall(json.dumps(metrics).encode("utf-8"))
-
-    def mark_booting_start(self):
-        self.conn.close()
-            
-
+from utils.benchmark import BenchmarkChannel
+from utils.firecracker import FirecrackerApiClient, FirecrackerGuestMemoryMonitor
 
 SOCKET_PATH = '/osv/.firecracker/api.socket'
 FIRECRACKER_PATH = '/osv/.firecracker/firecracker-x86_64'
@@ -114,7 +76,9 @@ api.make_put_call('/actions', {'action_type': 'InstanceStart'})
 # Mark the start of the booting process
 benchmark_channel.mark_booting_start()
 
-try:
-    fc.wait()
-except KeyboardInterrupt:
-    os.kill(fc.pid, signal.SIGINT)
+monitor = FirecrackerGuestMemoryMonitor(fc, 1024, 1)
+monitor.run()
+
+benchmark_channel.mark_execution_end()
+
+benchmark_channel.send_runtime_metrics(max(monitor.get_rss()) / 1024)

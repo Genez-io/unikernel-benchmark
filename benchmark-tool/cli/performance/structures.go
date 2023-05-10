@@ -6,10 +6,14 @@ const DOCKER_PORT = ":25565"
 type PerformanceBenchmark struct {
 	TimeToBootMs   int64
 	TimeToRunMs    int64
-	MemoryUsageMiB int
 	StaticMetrics  StaticMetrics
+	RuntimeMetrics RuntimeMetrics
 }
 
 type StaticMetrics struct {
-	ImageSize int64 `json:"imageSize"`
+	ImageSizeBytes int64 `json:"imageSizeBytes"`
+}
+
+type RuntimeMetrics struct {
+	TotalMemoryUsageMiB float64 `json:"totalMemoryUsageMiB"`
 }

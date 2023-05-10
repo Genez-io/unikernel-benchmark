@@ -3,23 +3,24 @@ package performance
 import (
 	"bufio"
 	"context"
+	"encoding/binary"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"io"
 	"net"
-	"os"
+	"strings"
 	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
+	"github.com/sirupsen/logrus"
 )
 
-func getStaticMetricsAndBoot() (*StaticMetrics, error) {
+func connectToTCPServer() (*net.Conn, error) {
 	var conn net.Conn
 	var err error
-	var staticMetrics StaticMetrics
 
 	for i := 0; ; i++ {
 		conn, err = net.DialTimeout("tcp", "localhost"+DOCKER_PORT, 10*time.Second)
@@ -31,20 +32,71 @@ func getStaticMetricsAndBoot() (*StaticMetrics, error) {
 			time.Sleep(5 * time.Millisecond)
 			continue
 		}
+		conn.SetDeadline(time.Time{})
 
 		break
 	}
 
-	buffer := make([]byte, 1024)
-	bytes_read, _ := conn.Read(buffer)
+	return &conn, nil
+}
+
+func readTCPMessage(conn net.Conn) ([]byte, int, error) {
+	var n int
+	var err error
+	data := make([]byte, 0)
+
+	// Read length of message
+	for bytes_recv := 0; bytes_recv < 4; bytes_recv += n {
+		buffer := make([]byte, 4-bytes_recv)
+		n, err = conn.Read(buffer)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		data = append(data, buffer[:n]...)
+	}
+	length := int(binary.LittleEndian.Uint32(data))
+
+	data = make([]byte, 0)
+	// Read message
+	for bytes_recv := 0; bytes_recv < length; bytes_recv += n {
+		buffer := make([]byte, length-bytes_recv)
+		n, err = conn.Read(buffer)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		data = append(data, buffer[:n]...)
+	}
+
+	return data, length, nil
+}
+
+func getStaticMetricsAndBoot(conn net.Conn) (*StaticMetrics, error) {
+	var staticMetrics StaticMetrics
+	var err error
+	var buffer []byte
+	var bytes_read int
+
+	buffer, bytes_read, err = readTCPMessage(conn)
+	if err != nil {
+		return nil, err
+	}
+	logrus.Debug("Static metrics received: " + string(buffer[:bytes_read]))
 
 	err = json.Unmarshal(buffer[:bytes_read], &staticMetrics)
 	if err != nil {
 		return nil, err
 	}
 
-	for bytes_read, _ := conn.Read(buffer); bytes_read != 0; {
-		time.Sleep(time.Millisecond)
+	buffer, bytes_read, err = readTCPMessage(conn)
+	if err != nil {
+		return nil, err
+	}
+	logrus.Debug("Start booting message received: " + string(buffer[:bytes_read]))
+
+	if string(buffer[:bytes_read]) != "start_booting" {
+		return nil, errors.New("Failed to boot unikernel")
 	}
 
 	return &staticMetrics, nil
@@ -89,6 +141,37 @@ func waitUnikernetToBoot() error {
 	return nil
 }
 
+func waitUnikernelExecutionEnd(conn net.Conn) error {
+	buffer, bytes_read, err := readTCPMessage(conn)
+	if err != nil {
+		return err
+	}
+	logrus.Debug("Execution end message received: " + string(buffer[:bytes_read]))
+
+	if string(buffer[:bytes_read]) != "execution_ended" {
+		return errors.New("Failed to wait unikernel execution end")
+	}
+
+	return nil
+}
+
+func getRuntimeMetrics(conn net.Conn) (*RuntimeMetrics, error) {
+	var runtimeMetrics RuntimeMetrics
+
+	buffer, bytes_read, err := readTCPMessage(conn)
+	if err != nil {
+		return nil, err
+	}
+	logrus.Debug("Runtime metrics received: " + string(buffer[:bytes_read]))
+
+	err = json.Unmarshal(buffer[:bytes_read], &runtimeMetrics)
+	if err != nil {
+		return nil, errors.New("Failed to unmarshal runtime metrics")
+	}
+
+	return &runtimeMetrics, nil
+}
+
 func OSvDriver(dockerClient *client.Client, buildContext io.ReadCloser, buildOptions types.ImageBuildOptions) (*PerformanceBenchmark, error) {
 	buildOptions.Tags = []string{"osv"}
 	buildOptions.Dockerfile = "unikernels/osv.Dockerfile"
@@ -100,7 +183,8 @@ func OSvDriver(dockerClient *client.Client, buildContext io.ReadCloser, buildOpt
 
 	scanner := bufio.NewScanner(builtImage.Body)
 	for scanner.Scan() {
-		fmt.Println(scanner.Text())
+		line := scanner.Text()
+		logrus.Debug(line)
 	}
 
 	resp, err := dockerClient.ContainerCreate(context.Background(),
@@ -146,26 +230,42 @@ func OSvDriver(dockerClient *client.Client, buildContext io.ReadCloser, buildOpt
 		Stdin:  true,
 		Stream: true,
 	})
-	go io.Copy(os.Stdout, waiter.Reader)
+	go func() {
+		// Read from waiter.Reader and log it to DEBUG
+		scanner := bufio.NewScanner(waiter.Reader)
+		for scanner.Scan() {
+			line := scanner.Text()
+			line = strings.Replace(line, "\r", "", -1)
+
+			logrus.Debug(line)
+		}
+	}()
 
 	time.Sleep(time.Second)
-	staticMetrics, err := getStaticMetricsAndBoot()
+	tcpConn, err := connectToTCPServer()
+
+	staticMetrics, err := getStaticMetricsAndBoot(*tcpConn)
 	if err != nil {
 		return nil, err
 	}
 
-	// go func() {
-	// 	i := 0
-	// 	for {
-	// 		println(fmt.Sprint(i) + "ms")
-	// 		time.Sleep(10 * time.Millisecond)
-	// 		i += 10
-	// 	}
-	// }()
-
 	boot_start := time.Now()
-	waitUnikernetToBoot()
+	err = waitUnikernetToBoot()
 	boot_end := time.Now()
+
+	logrus.Info("Unikernel booted, waiting for execution to end...")
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = waitUnikernelExecutionEnd(*tcpConn)
+	end := time.Now()
+
+	runtimeMetrics, err := getRuntimeMetrics(*tcpConn)
+	if err != nil {
+		return nil, err
+	}
 
 	statusCh, errCh := dockerClient.ContainerWait(context.Background(), resp.ID, container.WaitConditionNotRunning)
 	select {
@@ -176,8 +276,6 @@ func OSvDriver(dockerClient *client.Client, buildContext io.ReadCloser, buildOpt
 	case <-statusCh:
 	}
 
-	end := time.Now()
-
 	dockerClient.ContainerRemove(context.Background(), resp.ID, types.ContainerRemoveOptions{
 		Force: true,
 	})
@@ -185,8 +283,8 @@ func OSvDriver(dockerClient *client.Client, buildContext io.ReadCloser, buildOpt
 	return &PerformanceBenchmark{
 		TimeToBootMs:   boot_end.Sub(boot_start).Milliseconds(),
 		TimeToRunMs:    end.Sub(boot_start).Milliseconds(),
-		MemoryUsageMiB: 0,
 		StaticMetrics:  *staticMetrics,
+		RuntimeMetrics: *runtimeMetrics,
 	}, nil
 }
 

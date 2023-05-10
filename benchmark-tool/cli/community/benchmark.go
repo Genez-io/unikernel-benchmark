@@ -2,13 +2,19 @@ package community
 
 import (
 	"fmt"
-	"github.com/urfave/cli"
 	"log"
+
+	"github.com/sirupsen/logrus"
+	"github.com/urfave/cli"
 )
 
 func Benchmark(c *cli.Context) error {
 	if c.NArg() == 0 {
 		return fmt.Errorf("no GitHub repositories provided")
+	}
+
+	if c.Bool("debug") {
+		logrus.SetLevel(logrus.DebugLevel)
 	}
 
 	for _, arg := range c.Args() {

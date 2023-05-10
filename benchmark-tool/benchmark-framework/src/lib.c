@@ -7,6 +7,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <math.h>
+#include <dirent.h> 
+#include <unistd.h>
 
 static long get_memory_usage() {
     FILE *f = fopen("/proc/self/status", "r");
@@ -21,24 +23,45 @@ static long get_memory_usage() {
     return -1;
 }
 
-static char *timestamp(){
-    long            ms; // Milliseconds
-    time_t          s;  // Seconds
-    struct timespec spec; 
-    clock_gettime(CLOCK_REALTIME, &spec);
+// static char *timestamp(){
+//     long            ms; // Milliseconds
+//     time_t          s;  // Seconds
+//     struct timespec spec; 
+//     clock_gettime(CLOCK_REALTIME, &spec);
 
-    s  = spec.tv_sec;
-    ms = round(spec.tv_nsec / 1.0e6); // Convert nanoseconds to milliseconds
-    if (ms > 999) {
-        s++;
-        ms = 0;
-    }
+//     s  = spec.tv_sec;
+//     ms = round(spec.tv_nsec / 1.0e6); // Convert nanoseconds to milliseconds
+//     if (ms > 999) {
+//         s++;
+//         ms = 0;
+//     }
 
-    char *res = malloc(100);
-    sprintf(res, "%ld.%03ld\n", s, ms);
+//     char *res = malloc(100);
+//     sprintf(res, "%ld.%03ld\n", s, ms);
 
-    return res;
-}
+//     return res;
+// }
+
+// static void ls(const char* path) {
+//     DIR *d;
+//     struct dirent *dir;
+//     d = opendir(path);
+//     if (d) {
+//     while ((dir = readdir(d)) != NULL) {
+//         printf("%s\n", dir->d_name);
+//     }
+//     closedir(d);
+//     }
+// }
+
+// static void cat(const char* path) {
+//     FILE *f = fopen(path, "r");
+//     char line[128];
+//     while (fgets(line, 128, f) != NULL) {
+//         printf("%s\n", line);
+//     }
+//     fclose(f);
+// }
 
 static void open_server(benchmark_data *data) {
     int sock, len, received;
@@ -92,6 +115,7 @@ void benchmark_capture_cpu_usage_datapoint(benchmark_data *data) {}
 
 void benchmark_end(benchmark_data *data) {
     container_free(&data->memory_datapoints);
+    close(data->comm_socket);
 }
 
 void benchmark_set_display_errors(benchmark_data *data, int display_errors) {
