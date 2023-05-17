@@ -5,6 +5,7 @@ from utils.firecracker import FirecrackerApiClient, FirecrackerGuestMemoryMonito
 
 SOCKET_PATH = '/osv/.firecracker/api.socket'
 FIRECRACKER_PATH = '/osv/.firecracker/firecracker-x86_64'
+GUEST_MEMORY_MIB = 1024
 
 api = FirecrackerApiClient(SOCKET_PATH)
 benchmark_channel = BenchmarkChannel(25565)
@@ -64,7 +65,7 @@ api.make_put_call('/network-interfaces/eth0', {
 # Set machine configuration
 api.make_put_call('/machine-config', {
         'vcpu_count': 1,
-        'mem_size_mib': 1024,
+        'mem_size_mib': GUEST_MEMORY_MIB,
         'ht_enabled': False
     })
 
@@ -76,7 +77,7 @@ api.make_put_call('/actions', {'action_type': 'InstanceStart'})
 # Mark the start of the booting process
 benchmark_channel.mark_booting_start()
 
-monitor = FirecrackerGuestMemoryMonitor(fc, 1024, 1)
+monitor = FirecrackerGuestMemoryMonitor(fc, GUEST_MEMORY_MIB, 1)
 monitor.run()
 
 benchmark_channel.mark_execution_end()

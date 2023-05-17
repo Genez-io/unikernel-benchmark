@@ -17,7 +17,7 @@ RUN make -C /benchmark-executable
 
 RUN ./scripts/manifest_from_host.sh -w ../benchmark-executable/benchmark_executable && ./scripts/build --append-manifest
 
-RUN mkdir /osv/.firecracker/ && \
+RUN mkdir /osv/.firecracker/ && \   
     wget https://github.com/firecracker-microvm/firecracker/releases/download/v0.23.0/firecracker-v0.23.0-x86_64 -O /osv/.firecracker/firecracker-x86_64 && \
     chmod a+x /osv/.firecracker/firecracker-x86_64
 

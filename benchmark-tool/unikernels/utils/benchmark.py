@@ -74,7 +74,7 @@ class BenchmarkChannel(object):
         self.send_tcp_message('execution_ended'.encode('utf-8'))
 
 
-    def send_runtime_metrics(self, max_rss_mib: int) -> None:
+    def send_runtime_metrics(self, max_rss_mib: float) -> None:
         metrics = RuntimeMetrics()
         metrics['totalMemoryUsageMiB'] = max_rss_mib
 
