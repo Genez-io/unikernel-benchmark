@@ -1,11 +1,8 @@
 package performance
 
 import (
-	"io"
-
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/archive"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
@@ -23,18 +20,20 @@ func Benchmark(c *cli.Context) error {
 		buildOptions.NoCache = true
 	}
 
-	buildContext, err := archive.TarWithOptions(".", &archive.TarOptions{IncludeFiles: []string{"unikernels", "benchmark-executable", "benchmark-framework"}})
-	if err != nil {
-		return err
-	}
+	// buildContext, err := archive.TarWithOptions(".", &archive.TarOptions{IncludeFiles: []string{"unikernels", "benchmark-executable", "benchmark-framework"}})
+	// if err != nil {
+	// 	return err
+	// }
 
 	dockerClient, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation())
 	if err != nil {
 		return err
 	}
 
-	for _, element := range SupportedUnikernels {
-		benchmark, err := element.(func(*client.Client, io.ReadCloser, types.ImageBuildOptions) (*PerformanceBenchmark, error))(dockerClient, buildContext, buildOptions)
+	for repo, element := range SupportedUnikernels {
+		logrus.Infof("Running benchmark for %s", repo)
+
+		benchmark, err := element.(func(*client.Client, types.ImageBuildOptions) (*PerformanceBenchmark, error))(dockerClient, buildOptions)
 		if err != nil {
 			return err
 		}

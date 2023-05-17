@@ -12,6 +12,9 @@
 
 static long get_memory_usage() {
     FILE *f = fopen("/proc/self/status", "r");
+    if (f == NULL)   
+        return -1;
+
     char line[128];
     while (fgets(line, 128, f) != NULL) {
         if (strncmp(line, "VmRSS:", 6) == 0) {
@@ -116,6 +119,7 @@ void benchmark_capture_cpu_usage_datapoint(benchmark_data *data) {}
 void benchmark_end(benchmark_data *data) {
     container_free(&data->memory_datapoints);
     close(data->comm_socket);
+    exit(0);
 }
 
 void benchmark_set_display_errors(benchmark_data *data, int display_errors) {
@@ -123,7 +127,7 @@ void benchmark_set_display_errors(benchmark_data *data, int display_errors) {
 }
 
 void benchmark_error(char *msg, benchmark_data *data) {
-    if (!data->display_errors)
+    if (data && !data->display_errors)
         return;
 
     fprintf(stderr, "[benchmark-framework] %s\n", msg);

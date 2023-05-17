@@ -6,7 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
-	"io"
+	"fmt"
 	"net"
 	"strings"
 	"time"
@@ -14,6 +14,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/archive"
 	"github.com/docker/go-connections/nat"
 	"github.com/sirupsen/logrus"
 )
@@ -96,7 +97,7 @@ func getStaticMetricsAndBoot(conn net.Conn) (*StaticMetrics, error) {
 	logrus.Debug("Start booting message received: " + string(buffer[:bytes_read]))
 
 	if string(buffer[:bytes_read]) != "start_booting" {
-		return nil, errors.New("Failed to boot unikernel")
+		return nil, errors.New("failed to boot unikernel")
 	}
 
 	return &staticMetrics, nil
@@ -149,7 +150,7 @@ func waitUnikernelExecutionEnd(conn net.Conn) error {
 	logrus.Debug("Execution end message received: " + string(buffer[:bytes_read]))
 
 	if string(buffer[:bytes_read]) != "execution_ended" {
-		return errors.New("Failed to wait unikernel execution end")
+		return errors.New("failed to wait unikernel execution end")
 	}
 
 	return nil
@@ -166,19 +167,24 @@ func getRuntimeMetrics(conn net.Conn) (*RuntimeMetrics, error) {
 
 	err = json.Unmarshal(buffer[:bytes_read], &runtimeMetrics)
 	if err != nil {
-		return nil, errors.New("Failed to unmarshal runtime metrics")
+		return nil, errors.New("failed to unmarshal runtime metrics: " + err.Error())
 	}
 
 	return &runtimeMetrics, nil
 }
 
-func OSvDriver(dockerClient *client.Client, buildContext io.ReadCloser, buildOptions types.ImageBuildOptions) (*PerformanceBenchmark, error) {
-	buildOptions.Tags = []string{"osv"}
-	buildOptions.Dockerfile = "unikernels/osv.Dockerfile"
+func benchmarkUnikernel(dockerClient *client.Client, buildOptions types.ImageBuildOptions, unikernelName string) (*PerformanceBenchmark, error) {
+	buildOptions.Tags = []string{unikernelName}
+	buildOptions.Dockerfile = fmt.Sprintf("unikernels/%s.Dockerfile", unikernelName)
+
+	buildContext, err := archive.TarWithOptions(".", &archive.TarOptions{IncludeFiles: []string{"unikernels", "benchmark-executable", "benchmark-framework"}})
+	if err != nil {
+		return nil, errors.New("failed to create build context: " + err.Error())
+	}
 
 	builtImage, err := dockerClient.ImageBuild(context.Background(), buildContext, buildOptions)
 	if err != nil {
-		return nil, err
+		return nil, errors.New("failed to build unikernel image: " + err.Error())
 	}
 
 	scanner := bufio.NewScanner(builtImage.Body)
@@ -189,7 +195,7 @@ func OSvDriver(dockerClient *client.Client, buildContext io.ReadCloser, buildOpt
 
 	resp, err := dockerClient.ContainerCreate(context.Background(),
 		&container.Config{
-			Image: "osv",
+			Image: unikernelName,
 			ExposedPorts: nat.PortSet{
 				"25565/tcp": struct{}{},
 				"25565/udp": struct{}{},
@@ -217,11 +223,11 @@ func OSvDriver(dockerClient *client.Client, buildContext io.ReadCloser, buildOpt
 		},
 		nil, nil, "")
 	if err != nil {
-		return nil, err
+		return nil, errors.New("failed to create unikernel container: " + err.Error())
 	}
 
 	if err := dockerClient.ContainerStart(context.Background(), resp.ID, types.ContainerStartOptions{}); err != nil {
-		return nil, err
+		return nil, errors.New("failed to start unikernel container: " + err.Error())
 	}
 
 	waiter, _ := dockerClient.ContainerAttach(context.Background(), resp.ID, types.ContainerAttachOptions{
@@ -236,6 +242,8 @@ func OSvDriver(dockerClient *client.Client, buildContext io.ReadCloser, buildOpt
 		for scanner.Scan() {
 			line := scanner.Text()
 			line = strings.Replace(line, "\r", "", -1)
+			// Remove terminal clear characters
+			line = strings.Replace(line, "\x1bc\x1b[?7l\x1b[2J\x1b[0m", "", -1)
 
 			logrus.Debug(line)
 		}
@@ -243,6 +251,9 @@ func OSvDriver(dockerClient *client.Client, buildContext io.ReadCloser, buildOpt
 
 	time.Sleep(time.Second)
 	tcpConn, err := connectToTCPServer()
+	if err != nil {
+		return nil, err
+	}
 
 	staticMetrics, err := getStaticMetricsAndBoot(*tcpConn)
 	if err != nil {
@@ -251,15 +262,17 @@ func OSvDriver(dockerClient *client.Client, buildContext io.ReadCloser, buildOpt
 
 	boot_start := time.Now()
 	err = waitUnikernetToBoot()
+	if err != nil {
+		return nil, err
+	}
 	boot_end := time.Now()
 
 	logrus.Info("Unikernel booted, waiting for execution to end...")
 
+	err = waitUnikernelExecutionEnd(*tcpConn)
 	if err != nil {
 		return nil, err
 	}
-
-	err = waitUnikernelExecutionEnd(*tcpConn)
 	end := time.Now()
 
 	runtimeMetrics, err := getRuntimeMetrics(*tcpConn)
@@ -271,7 +284,7 @@ func OSvDriver(dockerClient *client.Client, buildContext io.ReadCloser, buildOpt
 	select {
 	case err := <-errCh:
 		if err != nil {
-			panic(err)
+			return nil, errors.New("failed to wait unikernel container: " + err.Error())
 		}
 	case <-statusCh:
 	}
@@ -288,6 +301,10 @@ func OSvDriver(dockerClient *client.Client, buildContext io.ReadCloser, buildOpt
 	}, nil
 }
 
-func UnikraftDriver(dockerClient *client.Client, buildContext io.ReadCloser, buildOptions types.ImageBuildOptions) (*PerformanceBenchmark, error) {
-	return nil, nil
+func OSvDriver(dockerClient *client.Client, buildOptions types.ImageBuildOptions) (*PerformanceBenchmark, error) {
+	return benchmarkUnikernel(dockerClient, buildOptions, "osv")
+}
+
+func UnikraftDriver(dockerClient *client.Client, buildOptions types.ImageBuildOptions) (*PerformanceBenchmark, error) {
+	return benchmarkUnikernel(dockerClient, buildOptions, "unikraft")
 }
