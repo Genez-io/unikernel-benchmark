@@ -1,8 +1,11 @@
 package performance
 
 import (
+	"fmt"
+
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
+	"github.com/fatih/color"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
@@ -30,19 +33,26 @@ func Benchmark(c *cli.Context) error {
 		return err
 	}
 
+	red := color.New(color.FgRed).SprintFunc()
+	green := color.New(color.FgGreen).SprintFunc()
+	blue := color.New(color.FgBlue).SprintFunc()
+	bold := color.New(color.Bold).SprintFunc()
+
 	for repo, element := range SupportedUnikernels {
-		logrus.Infof("Running benchmark for %s", repo)
+		for _, vmm := range element.SupportedVMMs {
+			logrus.Infof("Running benchmark for %s with %s backend", bold(green(repo)), bold(red(vmm)))
 
-		benchmark, err := element.(func(*client.Client, types.ImageBuildOptions) (*PerformanceBenchmark, error))(dockerClient, buildOptions)
-		if err != nil {
-			return err
-		}
+			benchmark, err := BenchmarkUnikernelWithDocker(dockerClient, buildOptions, element.UnikernelName, vmm)
+			if err != nil {
+				return err
+			}
 
-		if benchmark != nil {
-			logrus.Infof("Time to run: %dms", benchmark.TimeToRunMs)
-			logrus.Infof("Time to boot: %dms", benchmark.TimeToBootMs)
-			logrus.Infof("Image size: %.2fMiB", float64(benchmark.StaticMetrics.ImageSizeBytes)/(1024*1024))
-			logrus.Infof("Total memory usage: %.2fMiB", benchmark.RuntimeMetrics.TotalMemoryUsageMiB)
+			if benchmark != nil {
+				logrus.Infof("Time to run: %s", bold(blue(fmt.Sprintf("%dms", benchmark.TimeToRunMs))))
+				logrus.Infof("Time to boot: %s", bold(blue(fmt.Sprintf("%dms", benchmark.TimeToBootMs))))
+				logrus.Infof("Image size: %s", bold(blue(fmt.Sprintf("%.2fMiB", float64(benchmark.StaticMetrics.ImageSizeBytes)/(1024*1024)))))
+				logrus.Infof("Total memory usage: %s", bold(blue(fmt.Sprintf("%.2fMiB", benchmark.RuntimeMetrics.TotalMemoryUsageMiB))))
+			}
 		}
 	}
 

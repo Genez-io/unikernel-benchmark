@@ -1,6 +1,6 @@
 FROM ubuntu:latest
 
-RUN apt-get -y update && apt-get -y install git make gcc sudo libncurses-dev bison flex wget unzip python3 iptables qemu-system-x86 iproute2
+RUN apt-get -y update && apt-get -y install git make gcc sudo libncurses-dev bison flex wget unzip python3 iptables qemu-system-x86 iproute2 pip
 
 RUN mkdir elfloader elfloader/apps elfloader/libs && \
     git clone https://github.com/unikraft/app-elfloader.git /elfloader/apps/app-elfloader && \
@@ -18,7 +18,7 @@ RUN mkdir elfloader elfloader/apps elfloader/libs && \
 #     # rm Config.tmp
 
 WORKDIR /elfloader/apps/app-elfloader
-COPY unikernels/unikraft.config .config
+COPY unikernels/unikraft/unikraft.config .config
 
 RUN make
 
@@ -36,11 +36,12 @@ RUN make -C /benchmark-executable && \
 
 WORKDIR /run-app-elfloader
 
-COPY /unikernels/boot_docker_unikernel.sh /scripts/boot_docker_unikernel.sh
-COPY /unikernels/unikraft.py /scripts/unikraft.py
+RUN pip install qemu.qmp asyncio
+
+COPY /unikernels/unikraft/qemu/unikraft.py /scripts/unikraft.py
 COPY /unikernels/utils /scripts/utils
 
-CMD ["/bin/bash", "-c", "/scripts/boot_docker_unikernel.sh \
+CMD ["/bin/bash", "-c", "/scripts/utils/forward_udp_to_unikernel.sh \
     172.17.0.2 \
     172.44.0.2 \
     25565 \

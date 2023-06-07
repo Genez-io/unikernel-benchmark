@@ -3,16 +3,18 @@ import requests_unixsocket as req
 from typing import List
 import json, os, signal, subprocess
 
+
 class FirecrackerApiClient(object):
     def __init__(self, socket_path: str) -> None:
         self.session = req.Session()
         self.socket_path = f'http+unix://{socket_path.replace("/", "%2F")}'
 
-
     def make_put_call(self, endpoint: str, request_body: dict) -> Response:
-        res = self.session.put(self.socket_path + endpoint, data=json.dumps(request_body))
+        res = self.session.put(
+            self.socket_path + endpoint, data=json.dumps(request_body)
+        )
         if res.status_code != 204:
-            print(f'Error: {res.text}')
+            print(f"Error: {res.text}")
         return res
 
 
@@ -27,11 +29,9 @@ class FirecrackerGuestMemoryMonitor(object):
         self._guest_mem_range1 = None
         self._guest_mem_range2 = None
 
-
     def reset_ranges(self):
         self._guest_mem_range1 = None
         self._guest_mem_range2 = None
-
 
     def _update_guest_memory_regions(self, address: int, size_kib: int) -> None:
         # If x86_64 guest memory exceeds 3328M, it will be split
@@ -53,11 +53,9 @@ class FirecrackerGuestMemoryMonitor(object):
                 return True
         return False
 
-
     def get_rss(self) -> List[int]:
-        print(self._rss_list)
+        # print(self._rss_list)
         return self._rss_list
-
 
     def run(self) -> None:
         while True:
@@ -69,9 +67,9 @@ class FirecrackerGuestMemoryMonitor(object):
             except subprocess.TimeoutExpired:
                 # Check guest memory usage
                 proc = subprocess.run(
-                    ['pmap', '-xq', str(self._process.pid)],
+                    ["pmap", "-xq", str(self._process.pid)],
                     universal_newlines=True,
-                    stdout=subprocess.PIPE
+                    stdout=subprocess.PIPE,
                 )
                 memory = 0
                 self.reset_ranges()
@@ -80,7 +78,7 @@ class FirecrackerGuestMemoryMonitor(object):
                     if not tokens:
                         break
                     try:
-                        address = int(tokens[0].lstrip('0'), 16)
+                        address = int(tokens[0].lstrip("0"), 16)
                         total_size = int(tokens[1])
                         rss = int(tokens[2])
                     except ValueError:

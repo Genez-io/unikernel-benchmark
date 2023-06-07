@@ -173,9 +173,10 @@ func getRuntimeMetrics(conn net.Conn) (*RuntimeMetrics, error) {
 	return &runtimeMetrics, nil
 }
 
-func benchmarkUnikernel(dockerClient *client.Client, buildOptions types.ImageBuildOptions, unikernelName string) (*PerformanceBenchmark, error) {
-	buildOptions.Tags = []string{unikernelName}
-	buildOptions.Dockerfile = fmt.Sprintf("unikernels/%s.Dockerfile", unikernelName)
+func BenchmarkUnikernelWithDocker(dockerClient *client.Client, buildOptions types.ImageBuildOptions, unikernelName string, vmm string) (*PerformanceBenchmark, error) {
+	imageName := unikernelName + "-" + vmm
+	buildOptions.Tags = []string{imageName}
+	buildOptions.Dockerfile = fmt.Sprintf("unikernels/%s/%s/%s.Dockerfile", unikernelName, vmm, unikernelName)
 
 	buildContext, err := archive.TarWithOptions(".", &archive.TarOptions{IncludeFiles: []string{"unikernels", "benchmark-executable", "benchmark-framework"}})
 	if err != nil {
@@ -195,7 +196,7 @@ func benchmarkUnikernel(dockerClient *client.Client, buildOptions types.ImageBui
 
 	resp, err := dockerClient.ContainerCreate(context.Background(),
 		&container.Config{
-			Image: unikernelName,
+			Image: imageName,
 			ExposedPorts: nat.PortSet{
 				"25565/tcp": struct{}{},
 				"25565/udp": struct{}{},
@@ -225,6 +226,10 @@ func benchmarkUnikernel(dockerClient *client.Client, buildOptions types.ImageBui
 	if err != nil {
 		return nil, errors.New("failed to create unikernel container: " + err.Error())
 	}
+
+	defer dockerClient.ContainerRemove(context.Background(), resp.ID, types.ContainerRemoveOptions{
+		Force: true,
+	})
 
 	if err := dockerClient.ContainerStart(context.Background(), resp.ID, types.ContainerStartOptions{}); err != nil {
 		return nil, errors.New("failed to start unikernel container: " + err.Error())
@@ -289,22 +294,10 @@ func benchmarkUnikernel(dockerClient *client.Client, buildOptions types.ImageBui
 	case <-statusCh:
 	}
 
-	dockerClient.ContainerRemove(context.Background(), resp.ID, types.ContainerRemoveOptions{
-		Force: true,
-	})
-
 	return &PerformanceBenchmark{
 		TimeToBootMs:   boot_end.Sub(boot_start).Milliseconds(),
 		TimeToRunMs:    end.Sub(boot_start).Milliseconds(),
 		StaticMetrics:  *staticMetrics,
 		RuntimeMetrics: *runtimeMetrics,
 	}, nil
-}
-
-func OSvDriver(dockerClient *client.Client, buildOptions types.ImageBuildOptions) (*PerformanceBenchmark, error) {
-	return benchmarkUnikernel(dockerClient, buildOptions, "osv")
-}
-
-func UnikraftDriver(dockerClient *client.Client, buildOptions types.ImageBuildOptions) (*PerformanceBenchmark, error) {
-	return benchmarkUnikernel(dockerClient, buildOptions, "unikraft")
 }

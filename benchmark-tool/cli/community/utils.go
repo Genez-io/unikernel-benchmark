@@ -4,15 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/shurcooL/githubv4"
-	"github.com/urfave/cli"
-	"golang.org/x/oauth2"
 	"log"
 	"net/http"
 	"os"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/shurcooL/githubv4"
+	"github.com/urfave/cli"
+	"golang.org/x/oauth2"
 )
 
 func extractRepo(s string) (string, string, error) {
