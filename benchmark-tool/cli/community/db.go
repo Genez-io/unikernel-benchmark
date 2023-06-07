@@ -3,11 +3,12 @@ package community
 import (
 	"database/sql"
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
 	"log"
 	"os"
 	"strings"
 	"time"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
 func getEnvVariable(name string, private bool) (string, error) {
@@ -53,6 +54,9 @@ func handleMySQLConnection() (*sql.DB, error) {
 	}
 
 	conn, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", user, password, databaseAddr, databasePort, databaseName))
+	if err != nil {
+		return nil, err
+	}
 	for try := 0; try < 10; try++ {
 		err := conn.Ping()
 		if err != nil {
@@ -87,7 +91,7 @@ func saveToDb(connection *sql.DB, info *RepositoryInfo) error {
 	}
 	repositoryId, _ := result.LastInsertId()
 
-	result, err = tx.Exec(
+	_, err = tx.Exec(
 		`INSERT INTO pull_requests (repository_id, open_pull_requests_number, closed_pull_requests_number, 
 			average_comments_per_pull_request, average_commits_per_pull_request) VALUES (?, ?, ?, ?, ?)`,
 		repositoryId,
@@ -99,7 +103,7 @@ func saveToDb(connection *sql.DB, info *RepositoryInfo) error {
 		return err
 	}
 
-	result, err = tx.Exec(
+	_, err = tx.Exec(
 		`INSERT INTO issues (repository_id, open_issues_number, closed_issues_number,
         	average_comments_per_issue) VALUES (?, ?, ?, ?)`,
 		repositoryId,
@@ -110,7 +114,7 @@ func saveToDb(connection *sql.DB, info *RepositoryInfo) error {
 		return err
 	}
 
-	result, err = tx.Exec(
+	_, err = tx.Exec(
 		`INSERT INTO community_documents (repository_id, health_percentage, has_code_of_conduct,
 			has_contributing, has_issue_template, has_pull_request_template, has_license, has_readme, 
            	has_content_reports_enabled, has_wiki) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,

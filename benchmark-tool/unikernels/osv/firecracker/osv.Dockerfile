@@ -25,11 +25,10 @@ RUN echo "imageSizeBytes=$(wc -c ./build/release/usr.img | cut -d" " -f1)" >> /s
 
 RUN pip install requests-unixsocket
 
-COPY /unikernels/boot_docker_unikernel.sh /scripts/boot_docker_unikernel.sh
-COPY /unikernels/osv.py /scripts/osv.py
+COPY /unikernels/osv/firecracker/osv.py /scripts/osv.py
 COPY /unikernels/utils /scripts/utils
 
-CMD ["/bin/bash", "-c", "/scripts/boot_docker_unikernel.sh \
+CMD ["/bin/bash", "-c", "/scripts/utils/forward_udp_to_unikernel.sh \
     172.17.0.2 \
     172.16.0.2 \
     25565 \

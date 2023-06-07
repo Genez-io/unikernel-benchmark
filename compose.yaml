@@ -1,6 +1,6 @@
 services:
-  benchmark_app:
-    container_name: benchmark_app
+  community_benchmark:
+    container_name: community_benchmark
     build:
       context: ./community-benchmark
       dockerfile: Dockerfile
@@ -24,8 +24,8 @@ services:
     ports:
       - 3306:3306
     volumes:
-        - mysql_data:/var/lib/mysql
-        - ./mysql/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+      - mysql_data:/var/lib/mysql
+      - ./mysql/schema.sql:/docker-entrypoint-initdb.d/schema.sql
 
 volumes:
   mysql_data:
