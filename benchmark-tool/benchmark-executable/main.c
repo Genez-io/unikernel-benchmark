@@ -9,7 +9,8 @@ int main(void) {
     char *a[4];
 
     for (int i = 0; i < 4; i++) {
-        benchmark_capture_memory_datapoint(&data);
+        // benchmark_capture_memory_datapoint(&data);
+        printf("Allocating 10MB\n");
         a[i] = malloc(1024 * 1024 * 10);
         for (int j = 0; j < 1024 * 1024 * 10; j += 1)
             a[i][j] = 'a';
@@ -17,8 +18,9 @@ int main(void) {
     }
 
     for (int i = 0; i < 4; i++) {
+        printf("Freeing 10MB\n");
         free(a[i]);
-        benchmark_capture_memory_datapoint(&data);
+        // benchmark_capture_memory_datapoint(&data);
         sleep(1);
     }
 
