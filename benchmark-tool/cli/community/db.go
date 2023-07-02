@@ -114,23 +114,23 @@ func saveToDb(connection *sql.DB, info *RepositoryInfo) error {
 		return err
 	}
 
-	_, err = tx.Exec(
-		`INSERT INTO community_documents (repository_id, health_percentage, has_code_of_conduct,
-			has_contributing, has_issue_template, has_pull_request_template, has_license, has_readme, 
-           	has_content_reports_enabled, has_wiki) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		repositoryId,
-		info.CommunityDocumentation.HealthPercentage,
-		info.CommunityDocumentation.HasCodeOfConduct,
-		info.CommunityDocumentation.HasContributing,
-		info.CommunityDocumentation.HasIssueTemplate,
-		info.CommunityDocumentation.HasPullRequestTemplate,
-		info.CommunityDocumentation.HasLicense,
-		info.CommunityDocumentation.HasReadme,
-		info.CommunityDocumentation.HasContentReportsEnabled,
-		info.CommunityDocumentation.HasWiki)
-	if err != nil {
-		return err
-	}
+	// _, err = tx.Exec(
+	// 	`INSERT INTO community_documents (repository_id, health_percentage, has_code_of_conduct,
+	// 		has_contributing, has_issue_template, has_pull_request_template, has_license, has_readme,
+	//        	has_content_reports_enabled, has_wiki) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	// 	repositoryId,
+	// 	info.CommunityDocumentation.HealthPercentage,
+	// 	info.CommunityDocumentation.HasCodeOfConduct,
+	// 	info.CommunityDocumentation.HasContributing,
+	// 	info.CommunityDocumentation.HasIssueTemplate,
+	// 	info.CommunityDocumentation.HasPullRequestTemplate,
+	// 	info.CommunityDocumentation.HasLicense,
+	// 	info.CommunityDocumentation.HasReadme,
+	// 	info.CommunityDocumentation.HasContentReportsEnabled,
+	// 	info.CommunityDocumentation.HasWiki)
+	// if err != nil {
+	// 	return err
+	// }
 
 	err = tx.Commit()
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/fatih/color"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
@@ -17,7 +18,11 @@ func Benchmark(c *cli.Context) error {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
 
+	bold := color.New(color.Bold).SprintFunc()
+	green := color.New(color.FgGreen).SprintFunc()
+
 	for _, arg := range c.Args() {
+		logrus.Info("Collecting community data for ", bold(green(arg)))
 		owner, repo, err := extractRepo(arg)
 		if err != nil {
 			log.Print(err)

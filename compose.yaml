@@ -2,16 +2,16 @@ services:
   community_benchmark:
     container_name: community_benchmark
     build:
-      context: ./community-benchmark
+      context: ./benchmark-tool
       dockerfile: Dockerfile
-    command: /usr/local/bin/app bench ${LINKS} --mysql-export
+    command: /benchmark-tool community ${COMMUNITY_REPO_LINKS} --mysql-export
     environment:
       MYSQL_PASSWORD: S3cret_P@ssw0rd
       MYSQL_DATABASE: benchmark_repository
       MYSQL_ADDRESS: mysql_db
       MYSQL_PORT: 3306
       MYSQL_USER: root
-      #GITHUB_TOKEN: YOUR_GITHUB_TOKEN
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
   mysql_db:
     container_name: mysql_db
     image: mysql
